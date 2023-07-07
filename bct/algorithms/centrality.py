@@ -8,6 +8,7 @@ from ..citations import (
     BRANDES2001, KINTALI2008, SHANNON1948, RUBINOV2011, NEWMAN2016, HONEY2007,
     HAGMANN2008, GUIMERA2005, MORRISON2005, BOLDI2009, ESTRADA2005, ESTRADA2010
 )
+from scipy.sparse.csgraph import dijkstra as scipy_dijkstra #KJ use fast version
 
 
 @due.dcite(BibTeX(BRANDES2001), description="Unweighted betweenness centrality")
@@ -100,49 +101,18 @@ def betweenness_wei(G):
     n = len(G)
     BC = np.zeros((n,))  # vertex betweenness
 
+    D=scipy_dijkstra(G)
+
+    #tolerance for shortest path length similarity
+    tol=np.nanmin(D[D>0])/1000
+    
     for u in range(n):
-        D = np.tile(np.inf, (n,))
-        D[u] = 0  # distance from u
-        NP = np.zeros((n,))
-        NP[u] = 1  # number of paths from u
-        S = np.ones((n,), dtype=bool)  # distance permanence
-        P = np.zeros((n, n))  # predecessors
-        Q = np.zeros((n,), dtype=int)  # indices
-        q = n - 1  # order of non-increasing distance
-
-        G1 = G.copy()
-        V = [u]
-        while True:
-            S[V] = 0  # distance u->V is now permanent
-            G1[:, V] = 0  # no in-edges as already shortest
-            for v in V:
-                Q[q] = v
-                q -= 1
-                W, = np.where(G1[v, :])  # neighbors of v
-                for w in W:
-                    Duw = D[v] + G1[v, w]  # path length to be tested
-                    if Duw < D[w]:  # if new u->w shorter than old
-                        D[w] = Duw
-                        NP[w] = NP[v]  # NP(u->w) = NP of new path
-                        P[w, :] = 0
-                        P[w, v] = 1  # v is the only predecessor
-                    elif Duw == D[w]:  # if new u->w equal to old
-                        NP[w] += NP[v]  # NP(u->w) sum of old and new
-                        P[w, v] = 1  # v is also predecessor
-
-            if D[S].size == 0:
-                break  # all nodes were reached
-            if np.isinf(np.min(D[S])):  # some nodes cannot be reached
-                Q[:q + 1], = np.where(np.isinf(D))  # these are first in line
-                break
-            V, = np.where(D == np.min(D[S]))
-
-        DP = np.zeros((n,))
-        for w in Q[:n - 1]:
-            BC[w] += DP[w]
-            for v in np.where(P[w, :])[0]:
-                DP[v] += (1 + DP[w]) * NP[v] / NP[w]
-
+        #KJ: for each node u, is shortest(i->u)+shortest(j->u) equal to (within tol) of shortest(i->j)?
+        #if so, u must be in the shortest path i->j
+        d_node=D[:,u][:,np.newaxis]
+        d_node[u]=np.nan
+        d_withnode=d_node+d_node.T
+        BC[u]=np.sum(np.abs(D-d_withnode)<tol)
     return BC
 
 
