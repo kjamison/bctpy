@@ -3,7 +3,7 @@ import numpy as np
 from bct.utils import cuberoot, binarize, invert, BCTParamError
 from ..due import due, BibTeX
 from ..citations import LATORA2001, ONNELA2005, FAGIOLO2007, RUBINOV2010
-
+from scipy.sparse.csgraph import dijkstra as scipy_dijkstra #KJ use fast version
 
 def breadthdist(CIJ):
     '''
@@ -597,31 +597,8 @@ def efficiency_wei(Gw, local=False):
             "'local', 'global', or 'original'")
 
     def distance_inv_wei(G):
-        n = len(G)
-        D = np.zeros((n, n))  # distance matrix
-        D[np.logical_not(np.eye(n))] = np.inf
-
-        for u in range(n):
-            # distance permanence (true is temporary)
-            S = np.ones((n,), dtype=bool)
-            G1 = G.copy()
-            V = [u]
-            while True:
-                S[V] = 0  # distance u->V is now permanent
-                G1[:, V] = 0  # no in-edges as already shortest
-                for v in V:
-                    W, = np.where(G1[v, :])  # neighbors of smallest nodes
-                    td = np.array(
-                        [D[u, W].flatten(), (D[u, v] + G1[v, W]).flatten()])
-                    D[u, W] = np.min(td, axis=0)
-
-                if D[u, S].size == 0:  # all nodes reached
-                    break
-                minD = np.min(D[u, S])
-                if np.isinf(minD):  # some nodes cannot be reached
-                    break
-                V, = np.where(D[u, :] == minD)
-
+        #use fast version from scipy
+        D=scipy_dijkstra(G)
         np.fill_diagonal(D, 1)
         D = 1 / D
         np.fill_diagonal(D, 0)
